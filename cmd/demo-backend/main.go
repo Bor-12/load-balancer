@@ -17,6 +17,10 @@ func main() {
 	instanceID := valueOrDefault(os.Getenv("INSTANCE_ID"), "backend-1")
 	address := ":" + port
 
+	http.HandleFunc("/health", func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.WriteHeader(http.StatusOK)
+	})
+
 	http.HandleFunc("/", func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("Content-Type", "application/json")
 		response := backendResponse{

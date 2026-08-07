@@ -93,7 +93,74 @@ func TestRoundRobin_ConcurrentAccess(t *testing.T) {
 	waitGroup.Wait()
 }
 
+func TestRoundRobin_SkipsUnhealthyBackend(t *testing.T) {
+	roundRobin, backends := newTestRoundRobinWithBackends(t, "A", "B", "C")
+	backends[1].SetAlive(false)
+
+	expectedIDs := []string{"A", "C", "A", "C"}
+
+	for _, expectedID := range expectedIDs {
+		selectedBackend, err := roundRobin.Next()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if selectedBackend.ID != expectedID {
+			t.Fatalf("expected backend %s, got %s", expectedID, selectedBackend.ID)
+		}
+	}
+}
+
+func TestRoundRobin_ReturnsErrorWhenAllBackendsUnhealthy(t *testing.T) {
+	roundRobin, backends := newTestRoundRobinWithBackends(t, "A", "B", "C")
+	for _, testBackend := range backends {
+		testBackend.SetAlive(false)
+	}
+
+	_, err := roundRobin.Next()
+	if err == nil {
+		t.Fatal("expected error when all backends are unhealthy")
+	}
+}
+
+func TestRoundRobin_ReincludesRecoveredBackend(t *testing.T) {
+	roundRobin, backends := newTestRoundRobinWithBackends(t, "A", "B", "C")
+	backends[1].SetAlive(false)
+
+	for _, expectedID := range []string{"A", "C"} {
+		selectedBackend, err := roundRobin.Next()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if selectedBackend.ID != expectedID {
+			t.Fatalf("expected backend %s, got %s", expectedID, selectedBackend.ID)
+		}
+	}
+
+	backends[1].SetAlive(true)
+
+	for _, expectedID := range []string{"A", "B", "C"} {
+		selectedBackend, err := roundRobin.Next()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if selectedBackend.ID != expectedID {
+			t.Fatalf("expected backend %s, got %s", expectedID, selectedBackend.ID)
+		}
+	}
+}
+
 func newTestRoundRobin(t *testing.T, ids ...string) *RoundRobin {
+	t.Helper()
+
+	roundRobin, _ := newTestRoundRobinWithBackends(t, ids...)
+
+	return roundRobin
+}
+
+func newTestRoundRobinWithBackends(t *testing.T, ids ...string) (*RoundRobin, []*backend.Backend) {
 	t.Helper()
 
 	backends := make([]*backend.Backend, 0, len(ids))
@@ -111,5 +178,5 @@ func newTestRoundRobin(t *testing.T, ids ...string) *RoundRobin {
 		t.Fatalf("failed to create round robin: %v", err)
 	}
 
-	return roundRobin
+	return roundRobin, backends
 }
