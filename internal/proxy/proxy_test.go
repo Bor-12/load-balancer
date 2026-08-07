@@ -1,12 +1,16 @@
 package proxy
 
 import (
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/Bor-12/load-balancer/internal/backend"
+	"github.com/Bor-12/load-balancer/internal/balancer"
 )
 
 func TestProxy_ForwardsRequestToBackend(t *testing.T) {
@@ -113,6 +117,49 @@ func TestNewProxy_RejectsInvalidURL(t *testing.T) {
 	}
 }
 
+func TestProxy_RoundRobinDistribution(t *testing.T) {
+	backendA := newBackendServer("A")
+	defer backendA.Close()
+	backendB := newBackendServer("B")
+	defer backendB.Close()
+	backendC := newBackendServer("C")
+	defer backendC.Close()
+
+	backends := []*backend.Backend{
+		newTestBackend(t, "A", backendA.URL),
+		newTestBackend(t, "B", backendB.URL),
+		newTestBackend(t, "C", backendC.URL),
+	}
+
+	roundRobin, err := balancer.NewRoundRobin(backends)
+	if err != nil {
+		t.Fatalf("failed to create round robin: %v", err)
+	}
+
+	reverseProxy := NewWithBalancer(roundRobin, testLogger())
+	expectedInstances := []string{"A", "B", "C", "A", "B", "C"}
+
+	for _, expectedInstance := range expectedInstances {
+		responseRecorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+		reverseProxy.ServeHTTP(responseRecorder, request)
+
+		if responseRecorder.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, responseRecorder.Code)
+		}
+
+		var response testBackendResponse
+		if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+
+		if response.Instance != expectedInstance {
+			t.Fatalf("expected instance %s, got %s", expectedInstance, response.Instance)
+		}
+	}
+}
+
 func newTestProxy(t *testing.T, targetURL string) *Proxy {
 	t.Helper()
 
@@ -126,4 +173,26 @@ func newTestProxy(t *testing.T, targetURL string) *Proxy {
 
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+type testBackendResponse struct {
+	Instance string `json:"instance"`
+}
+
+func newBackendServer(instance string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(responseWriter).Encode(testBackendResponse{Instance: instance})
+	}))
+}
+
+func newTestBackend(t *testing.T, id string, rawURL string) *backend.Backend {
+	t.Helper()
+
+	testBackend, err := backend.New(id, rawURL)
+	if err != nil {
+		t.Fatalf("failed to create backend: %v", err)
+	}
+
+	return testBackend
 }
