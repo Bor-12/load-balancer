@@ -1,4 +1,5 @@
 APP_NAME := cloudbalancer
+APP_BINARY := $(APP_NAME).exe
 CMD_PATH := ./cmd/cloudbalancer
 GO_PACKAGES := ./...
 
@@ -21,8 +22,8 @@ coverage:
 	go tool cover -html=coverage.out -o coverage.html
 
 build:
-	mkdir -p bin
-	go build -o bin/$(APP_NAME) $(CMD_PATH)
+	if not exist bin mkdir bin
+	go build -o bin/$(APP_BINARY) $(CMD_PATH)
 
 verify: fmt vet test test-race build
 
