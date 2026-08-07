@@ -160,6 +160,29 @@ func TestProxy_RoundRobinDistribution(t *testing.T) {
 	}
 }
 
+func TestProxy_ReturnsServiceUnavailableWhenNoBackendIsAlive(t *testing.T) {
+	backendA := newBackendServer("A")
+	defer backendA.Close()
+
+	testBackend := newTestBackend(t, "A", backendA.URL)
+	testBackend.SetAlive(false)
+
+	roundRobin, err := balancer.NewRoundRobin([]*backend.Backend{testBackend})
+	if err != nil {
+		t.Fatalf("failed to create round robin: %v", err)
+	}
+
+	reverseProxy := NewWithBalancer(roundRobin, testLogger())
+	responseRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	reverseProxy.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, responseRecorder.Code)
+	}
+}
+
 func newTestProxy(t *testing.T, targetURL string) *Proxy {
 	t.Helper()
 

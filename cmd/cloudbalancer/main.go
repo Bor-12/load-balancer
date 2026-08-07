@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Bor-12/load-balancer/internal/backend"
 	"github.com/Bor-12/load-balancer/internal/balancer"
+	"github.com/Bor-12/load-balancer/internal/health"
 	"github.com/Bor-12/load-balancer/internal/proxy"
 )
 
@@ -29,6 +32,8 @@ func main() {
 	}
 
 	reverseProxy := proxy.NewWithBalancer(roundRobin, logger)
+	healthChecker := health.NewChecker(backends, "/health", 2*time.Second, 500*time.Millisecond, logger)
+	go healthChecker.Run(context.Background())
 
 	server := &http.Server{
 		Addr:    ":8080",

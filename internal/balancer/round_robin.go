@@ -25,8 +25,14 @@ func (roundRobin *RoundRobin) Next() (*backend.Backend, error) {
 	roundRobin.mutex.Lock()
 	defer roundRobin.mutex.Unlock()
 
-	selectedBackend := roundRobin.backends[roundRobin.next]
-	roundRobin.next = (roundRobin.next + 1) % len(roundRobin.backends)
+	for range roundRobin.backends {
+		selectedBackend := roundRobin.backends[roundRobin.next]
+		roundRobin.next = (roundRobin.next + 1) % len(roundRobin.backends)
 
-	return selectedBackend, nil
+		if selectedBackend.IsAlive() {
+			return selectedBackend, nil
+		}
+	}
+
+	return nil, errors.New("no alive backends available")
 }
