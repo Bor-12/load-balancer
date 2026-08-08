@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Bor-12/load-balancer/internal/backend"
 	"github.com/Bor-12/load-balancer/internal/balancer"
@@ -180,6 +181,30 @@ func TestProxy_ReturnsServiceUnavailableWhenNoBackendIsAlive(t *testing.T) {
 
 	if responseRecorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, responseRecorder.Code)
+	}
+}
+
+func TestProxy_ReturnsGatewayTimeoutWhenBackendIsSlow(t *testing.T) {
+	slowBackend := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	defer slowBackend.Close()
+
+	testBackend := newTestBackend(t, "A", slowBackend.URL)
+	roundRobin, err := balancer.NewRoundRobin([]*backend.Backend{testBackend})
+	if err != nil {
+		t.Fatalf("failed to create round robin: %v", err)
+	}
+
+	reverseProxy := NewWithBalancerWithTimeout(roundRobin, testLogger(), 10*time.Millisecond)
+	responseRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	reverseProxy.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected status %d, got %d", http.StatusGatewayTimeout, responseRecorder.Code)
 	}
 }
 
