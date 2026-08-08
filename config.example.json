@@ -1,0 +1,13 @@
+{
+  "listen_address": ":8080",
+  "backend_urls": [
+    "http://localhost:9001",
+    "http://localhost:9002",
+    "http://localhost:9003"
+  ],
+  "request_timeout": "5s",
+  "health_check_path": "/health",
+  "health_check_interval": "2s",
+  "health_check_timeout": "500ms",
+  "max_attempts": 2
+}

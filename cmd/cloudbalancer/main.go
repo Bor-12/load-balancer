@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/Bor-12/load-balancer/internal/backend"
 	"github.com/Bor-12/load-balancer/internal/balancer"
@@ -17,9 +15,13 @@ import (
 
 func main() {
 	logger := slog.Default()
-	backendURLs := backendURLsFromEnvironment()
+	loadedConfig, err := loadConfig()
+	if err != nil {
+		logger.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
-	backends, err := buildBackends(backendURLs)
+	backends, err := buildBackends(loadedConfig.BackendURLs)
 	if err != nil {
 		logger.Error("invalid backend configuration", "error", err)
 		os.Exit(1)
@@ -31,12 +33,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	reverseProxy := proxy.NewWithBalancer(roundRobin, logger)
-	healthChecker := health.NewChecker(backends, "/health", 2*time.Second, 500*time.Millisecond, logger)
+	reverseProxy := proxy.NewWithBalancerWithTimeoutAndRetries(roundRobin, logger, loadedConfig.RequestTimeout, loadedConfig.MaxAttempts)
+	healthChecker := health.NewChecker(backends, loadedConfig.HealthCheckPath, loadedConfig.HealthCheckInterval, loadedConfig.HealthCheckTimeout, logger)
 	go healthChecker.Run(context.Background())
 
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    loadedConfig.ListenAddress,
 		Handler: reverseProxy,
 	}
 
@@ -46,24 +48,6 @@ func main() {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
-}
-
-func backendURLsFromEnvironment() []string {
-	rawBackendURLs := os.Getenv("BACKEND_URLS")
-	if rawBackendURLs == "" {
-		rawBackendURLs = os.Getenv("BACKEND_URL")
-	}
-
-	backendURLs := strings.Split(rawBackendURLs, ",")
-	cleanBackendURLs := make([]string, 0, len(backendURLs))
-	for _, backendURL := range backendURLs {
-		cleanBackendURL := strings.TrimSpace(backendURL)
-		if cleanBackendURL != "" {
-			cleanBackendURLs = append(cleanBackendURLs, cleanBackendURL)
-		}
-	}
-
-	return cleanBackendURLs
 }
 
 func buildBackends(backendURLs []string) ([]*backend.Backend, error) {
