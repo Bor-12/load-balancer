@@ -13,7 +13,9 @@ func TestLoadConfigFromFile(t *testing.T) {
 	configPath := filepath.Join(tempDirectory, "config.json")
 	configContent := `{
 		"listen_address": ":9090",
+		"balancer_strategy": "weighted_round_robin",
 		"backend_urls": ["http://localhost:9001", "http://localhost:9002"],
+		"backend_weights": [5, 3],
 		"request_timeout": "3s",
 		"health_check_path": "/ready",
 		"health_check_interval": "1s",
@@ -39,8 +41,15 @@ func TestLoadConfigFromFile(t *testing.T) {
 	if loadedConfig.ListenAddress != ":9090" {
 		t.Fatalf("expected listen address %q, got %q", ":9090", loadedConfig.ListenAddress)
 	}
+	if loadedConfig.BalancerStrategy != "weighted_round_robin" {
+		t.Fatalf("expected balancer strategy %q, got %q", "weighted_round_robin", loadedConfig.BalancerStrategy)
+	}
 	if loadedConfig.RequestTimeout != 3*time.Second {
 		t.Fatalf("expected request timeout %s, got %s", 3*time.Second, loadedConfig.RequestTimeout)
+	}
+	expectedBackendWeights := []int{5, 3}
+	if !reflect.DeepEqual(loadedConfig.BackendWeights, expectedBackendWeights) {
+		t.Fatalf("expected %v, got %v", expectedBackendWeights, loadedConfig.BackendWeights)
 	}
 	if loadedConfig.HealthCheckPath != "/ready" {
 		t.Fatalf("expected health check path %q, got %q", "/ready", loadedConfig.HealthCheckPath)
@@ -70,6 +79,8 @@ func TestLoadConfigEnvironmentOverridesFile(t *testing.T) {
 
 	t.Setenv("CONFIG_FILE", configPath)
 	t.Setenv("BACKEND_URLS", "http://localhost:9101,http://localhost:9102")
+	t.Setenv("BACKEND_WEIGHTS", "2,1")
+	t.Setenv("BALANCER_STRATEGY", "weighted_round_robin")
 	t.Setenv("REQUEST_TIMEOUT", "1s")
 
 	loadedConfig, err := loadConfig()
@@ -83,6 +94,13 @@ func TestLoadConfigEnvironmentOverridesFile(t *testing.T) {
 	}
 	if loadedConfig.RequestTimeout != time.Second {
 		t.Fatalf("expected request timeout %s, got %s", time.Second, loadedConfig.RequestTimeout)
+	}
+	expectedBackendWeights := []int{2, 1}
+	if !reflect.DeepEqual(loadedConfig.BackendWeights, expectedBackendWeights) {
+		t.Fatalf("expected %v, got %v", expectedBackendWeights, loadedConfig.BackendWeights)
+	}
+	if loadedConfig.BalancerStrategy != "weighted_round_robin" {
+		t.Fatalf("expected balancer strategy %q, got %q", "weighted_round_robin", loadedConfig.BalancerStrategy)
 	}
 }
 

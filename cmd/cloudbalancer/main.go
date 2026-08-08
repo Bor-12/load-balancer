@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -21,19 +22,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	backends, err := buildBackends(loadedConfig.BackendURLs)
+	backends, err := buildBackends(loadedConfig.BackendURLs, loadedConfig.BackendWeights)
 	if err != nil {
 		logger.Error("invalid backend configuration", "error", err)
 		os.Exit(1)
 	}
 
-	roundRobin, err := balancer.NewRoundRobin(backends)
+	requestBalancer, err := buildBalancer(loadedConfig.BalancerStrategy, backends)
 	if err != nil {
-		logger.Error("invalid backend configuration", "error", err)
+		logger.Error("invalid balancer configuration", "error", err)
 		os.Exit(1)
 	}
 
-	reverseProxy := proxy.NewWithBalancerWithTimeoutAndRetries(roundRobin, logger, loadedConfig.RequestTimeout, loadedConfig.MaxAttempts)
+	reverseProxy := proxy.NewWithBalancerWithTimeoutAndRetries(requestBalancer, logger, loadedConfig.RequestTimeout, loadedConfig.MaxAttempts)
 	healthChecker := health.NewChecker(backends, loadedConfig.HealthCheckPath, loadedConfig.HealthCheckInterval, loadedConfig.HealthCheckTimeout, logger)
 	go healthChecker.Run(context.Background())
 
@@ -50,11 +51,20 @@ func main() {
 	}
 }
 
-func buildBackends(backendURLs []string) ([]*backend.Backend, error) {
+func buildBackends(backendURLs []string, backendWeights []int) ([]*backend.Backend, error) {
+	if len(backendWeights) > 0 && len(backendWeights) != len(backendURLs) {
+		return nil, errors.New("backend weights count must match backend URLs count")
+	}
+
 	backends := make([]*backend.Backend, 0, len(backendURLs))
 	for index, backendURL := range backendURLs {
 		backendID := fmt.Sprintf("backend-%d", index+1)
-		parsedBackend, err := backend.New(backendID, backendURL)
+		backendWeight := 1
+		if len(backendWeights) > 0 {
+			backendWeight = backendWeights[index]
+		}
+
+		parsedBackend, err := backend.NewWithWeight(backendID, backendURL, backendWeight)
 		if err != nil {
 			return nil, err
 		}
@@ -63,4 +73,15 @@ func buildBackends(backendURLs []string) ([]*backend.Backend, error) {
 	}
 
 	return backends, nil
+}
+
+func buildBalancer(strategy string, backends []*backend.Backend) (balancer.Balancer, error) {
+	switch strategy {
+	case "round_robin":
+		return balancer.NewRoundRobin(backends)
+	case "weighted_round_robin":
+		return balancer.NewWeightedRoundRobin(backends)
+	default:
+		return nil, fmt.Errorf("unsupported balancer strategy %q", strategy)
+	}
 }

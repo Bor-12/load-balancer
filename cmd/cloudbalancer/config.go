@@ -13,7 +13,9 @@ const defaultConfigPath = "config.json"
 
 type config struct {
 	ListenAddress       string   `json:"listen_address"`
+	BalancerStrategy    string   `json:"balancer_strategy"`
 	BackendURLs         []string `json:"backend_urls"`
+	BackendWeights      []int    `json:"backend_weights"`
 	RequestTimeout      string   `json:"request_timeout"`
 	HealthCheckPath     string   `json:"health_check_path"`
 	HealthCheckInterval string   `json:"health_check_interval"`
@@ -23,7 +25,9 @@ type config struct {
 
 type runtimeConfig struct {
 	ListenAddress       string
+	BalancerStrategy    string
 	BackendURLs         []string
+	BackendWeights      []int
 	RequestTimeout      time.Duration
 	HealthCheckPath     string
 	HealthCheckInterval time.Duration
@@ -53,6 +57,7 @@ func loadConfig() (runtimeConfig, error) {
 func defaultConfig() config {
 	return config{
 		ListenAddress:       ":8080",
+		BalancerStrategy:    "round_robin",
 		RequestTimeout:      "5s",
 		HealthCheckPath:     "/health",
 		HealthCheckInterval: "2s",
@@ -91,7 +96,9 @@ func loadConfigFile(configPath string) (config, error) {
 func configFromEnvironment() config {
 	return config{
 		ListenAddress:       strings.TrimSpace(os.Getenv("LISTEN_ADDRESS")),
+		BalancerStrategy:    strings.TrimSpace(os.Getenv("BALANCER_STRATEGY")),
 		BackendURLs:         backendURLsFromEnvironment(),
+		BackendWeights:      backendWeightsFromEnvironment(),
 		RequestTimeout:      strings.TrimSpace(os.Getenv("REQUEST_TIMEOUT")),
 		HealthCheckPath:     strings.TrimSpace(os.Getenv("HEALTH_CHECK_PATH")),
 		HealthCheckInterval: strings.TrimSpace(os.Getenv("HEALTH_CHECK_INTERVAL")),
@@ -109,6 +116,10 @@ func backendURLsFromEnvironment() []string {
 	return splitBackendURLs(rawBackendURLs)
 }
 
+func backendWeightsFromEnvironment() []int {
+	return splitInts(os.Getenv("BACKEND_WEIGHTS"))
+}
+
 func splitBackendURLs(rawBackendURLs string) []string {
 	backendURLs := strings.Split(rawBackendURLs, ",")
 	cleanBackendURLs := make([]string, 0, len(backendURLs))
@@ -120,6 +131,19 @@ func splitBackendURLs(rawBackendURLs string) []string {
 	}
 
 	return cleanBackendURLs
+}
+
+func splitInts(rawValues string) []int {
+	values := strings.Split(rawValues, ",")
+	parsedValues := make([]int, 0, len(values))
+	for _, rawValue := range values {
+		value, err := strconv.Atoi(strings.TrimSpace(rawValue))
+		if err == nil {
+			parsedValues = append(parsedValues, value)
+		}
+	}
+
+	return parsedValues
 }
 
 func intFromEnvironment(name string) int {
@@ -140,8 +164,14 @@ func mergeConfig(baseConfig config, overrideConfig config) config {
 	if overrideConfig.ListenAddress != "" {
 		baseConfig.ListenAddress = overrideConfig.ListenAddress
 	}
+	if overrideConfig.BalancerStrategy != "" {
+		baseConfig.BalancerStrategy = overrideConfig.BalancerStrategy
+	}
 	if len(overrideConfig.BackendURLs) > 0 {
 		baseConfig.BackendURLs = overrideConfig.BackendURLs
+	}
+	if len(overrideConfig.BackendWeights) > 0 {
+		baseConfig.BackendWeights = overrideConfig.BackendWeights
 	}
 	if overrideConfig.RequestTimeout != "" {
 		baseConfig.RequestTimeout = overrideConfig.RequestTimeout
@@ -180,7 +210,9 @@ func parseRuntimeConfig(loadedConfig config) (runtimeConfig, error) {
 
 	return runtimeConfig{
 		ListenAddress:       loadedConfig.ListenAddress,
+		BalancerStrategy:    loadedConfig.BalancerStrategy,
 		BackendURLs:         loadedConfig.BackendURLs,
+		BackendWeights:      loadedConfig.BackendWeights,
 		RequestTimeout:      requestTimeout,
 		HealthCheckPath:     loadedConfig.HealthCheckPath,
 		HealthCheckInterval: healthCheckInterval,
