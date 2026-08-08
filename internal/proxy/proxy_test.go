@@ -208,6 +208,77 @@ func TestProxy_ReturnsGatewayTimeoutWhenBackendIsSlow(t *testing.T) {
 	}
 }
 
+func TestProxy_RetriesIdempotentRequest(t *testing.T) {
+	unavailableBackend := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	unavailableBackendURL := unavailableBackend.URL
+	unavailableBackend.Close()
+
+	healthyBackend := newBackendServer("healthy")
+	defer healthyBackend.Close()
+
+	backends := []*backend.Backend{
+		newTestBackend(t, "unavailable", unavailableBackendURL),
+		newTestBackend(t, "healthy", healthyBackend.URL),
+	}
+
+	roundRobin, err := balancer.NewRoundRobin(backends)
+	if err != nil {
+		t.Fatalf("failed to create round robin: %v", err)
+	}
+
+	reverseProxy := NewWithBalancerWithTimeoutAndRetries(roundRobin, testLogger(), time.Second, 2)
+	responseRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	reverseProxy.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, responseRecorder.Code)
+	}
+
+	var response testBackendResponse
+	if err := json.NewDecoder(responseRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Instance != "healthy" {
+		t.Fatalf("expected healthy backend, got %s", response.Instance)
+	}
+}
+
+func TestProxy_DoesNotRetryPostRequest(t *testing.T) {
+	unavailableBackend := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	unavailableBackendURL := unavailableBackend.URL
+	unavailableBackend.Close()
+
+	healthyBackend := newBackendServer("healthy")
+	defer healthyBackend.Close()
+
+	backends := []*backend.Backend{
+		newTestBackend(t, "unavailable", unavailableBackendURL),
+		newTestBackend(t, "healthy", healthyBackend.URL),
+	}
+
+	roundRobin, err := balancer.NewRoundRobin(backends)
+	if err != nil {
+		t.Fatalf("failed to create round robin: %v", err)
+	}
+
+	reverseProxy := NewWithBalancerWithTimeoutAndRetries(roundRobin, testLogger(), time.Second, 2)
+	responseRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("payload"))
+
+	reverseProxy.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusBadGateway {
+		t.Fatalf("expected status %d, got %d", http.StatusBadGateway, responseRecorder.Code)
+	}
+}
+
 func newTestProxy(t *testing.T, targetURL string) *Proxy {
 	t.Helper()
 
