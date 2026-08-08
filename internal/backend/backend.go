@@ -7,23 +7,33 @@ import (
 )
 
 type Backend struct {
-	ID  string
-	URL *url.URL
+	ID     string
+	URL    *url.URL
+	Weight int
 
 	mutex sync.RWMutex
 	alive bool
 }
 
 func New(id string, rawURL string) (*Backend, error) {
+	return NewWithWeight(id, rawURL, 1)
+}
+
+func NewWithWeight(id string, rawURL string, weight int) (*Backend, error) {
+	if weight < 1 {
+		return nil, errors.New("backend weight must be at least 1")
+	}
+
 	parsedURL, err := parseURL(rawURL)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Backend{
-		ID:    id,
-		URL:   parsedURL,
-		alive: true,
+		ID:     id,
+		URL:    parsedURL,
+		Weight: weight,
+		alive:  true,
 	}, nil
 }
 
