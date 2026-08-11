@@ -12,7 +12,9 @@ import (
 	"github.com/Bor-12/load-balancer/internal/balancer"
 	"github.com/Bor-12/load-balancer/internal/config"
 	"github.com/Bor-12/load-balancer/internal/health"
+	"github.com/Bor-12/load-balancer/internal/metrics"
 	"github.com/Bor-12/load-balancer/internal/proxy"
+	"github.com/Bor-12/load-balancer/internal/status"
 )
 
 const defaultConfigPath = "configs/config.local.yaml"
@@ -40,15 +42,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	reverseProxy := proxy.NewWithBalancerWithTimeoutAndRetries(requestBalancer, logger, loadedConfig.Server.RequestTimeout, loadedConfig.Retries.MaxAttempts)
+	metricsRecorder := metrics.NewRecorder(backends)
+	reverseProxy := proxy.NewWithBalancerWithTimeoutRetriesAndObserver(requestBalancer, logger, loadedConfig.Server.RequestTimeout, loadedConfig.Retries.MaxAttempts, metricsRecorder)
 	if loadedConfig.HealthCheck.Enabled {
-		healthChecker := health.NewChecker(backends, loadedConfig.HealthCheck.Path, loadedConfig.HealthCheck.Interval, loadedConfig.HealthCheck.Timeout, logger)
+		healthChecker := health.NewCheckerWithObserver(backends, loadedConfig.HealthCheck.Path, loadedConfig.HealthCheck.Interval, loadedConfig.HealthCheck.Timeout, logger, metricsRecorder)
 		go healthChecker.Run(context.Background())
 	}
 
+	router := http.NewServeMux()
+	router.Handle("/metrics", metricsRecorder.Handler())
+	router.Handle("/healthz", status.HealthzHandler())
+	router.Handle("/readyz", status.ReadyzHandler(backends))
+	router.Handle("/", reverseProxy)
+
 	server := &http.Server{
 		Addr:    loadedConfig.Server.ListenAddress,
-		Handler: reverseProxy,
+		Handler: router,
 	}
 
 	logger.Info("CloudBalancer listening", "address", server.Addr, "backend_count", len(backends))
