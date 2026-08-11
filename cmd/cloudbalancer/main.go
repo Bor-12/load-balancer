@@ -81,6 +81,8 @@ func buildBalancer(strategy string, backends []*backend.Backend) (balancer.Balan
 		return balancer.NewRoundRobin(backends)
 	case "weighted_round_robin":
 		return balancer.NewWeightedRoundRobin(backends)
+	case "least_connections":
+		return balancer.NewLeastConnections(backends)
 	default:
 		return nil, fmt.Errorf("unsupported balancer strategy %q", strategy)
 	}

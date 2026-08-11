@@ -42,3 +42,36 @@ func TestBackend_RejectsInvalidWeight(t *testing.T) {
 		t.Fatal("expected error with invalid weight")
 	}
 }
+
+func TestBackend_TracksActiveRequests(t *testing.T) {
+	backend, err := New("backend-1", "http://localhost:8081")
+	if err != nil {
+		t.Fatalf("failed to create backend: %v", err)
+	}
+
+	backend.IncrementActive()
+	backend.IncrementActive()
+
+	if backend.ActiveCount() != 2 {
+		t.Fatalf("expected active count %d, got %d", 2, backend.ActiveCount())
+	}
+
+	backend.DecrementActive()
+
+	if backend.ActiveCount() != 1 {
+		t.Fatalf("expected active count %d, got %d", 1, backend.ActiveCount())
+	}
+}
+
+func TestBackend_ActiveRequestsNeverNegative(t *testing.T) {
+	backend, err := New("backend-1", "http://localhost:8081")
+	if err != nil {
+		t.Fatalf("failed to create backend: %v", err)
+	}
+
+	backend.DecrementActive()
+
+	if backend.ActiveCount() != 0 {
+		t.Fatalf("expected active count %d, got %d", 0, backend.ActiveCount())
+	}
+}

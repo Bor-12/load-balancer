@@ -128,6 +128,9 @@ func (proxy *Proxy) serveAttempt(responseWriter http.ResponseWriter, request *ht
 	timeoutContext, cancel := context.WithTimeout(request.Context(), proxy.timeout)
 	defer cancel()
 
+	selectedBackend.IncrementActive()
+	defer selectedBackend.DecrementActive()
+
 	requestContext := context.WithValue(timeoutContext, selectedBackendURLKey{}, selectedBackend.URL)
 	proxy.reverseProxy.ServeHTTP(responseWriter, request.WithContext(requestContext))
 }

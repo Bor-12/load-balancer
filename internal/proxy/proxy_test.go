@@ -279,6 +279,30 @@ func TestProxy_DoesNotRetryPostRequest(t *testing.T) {
 	}
 }
 
+func TestProxy_DecrementsActiveRequestsAfterRequest(t *testing.T) {
+	backendServer := newBackendServer("A")
+	defer backendServer.Close()
+
+	testBackend := newTestBackend(t, "A", backendServer.URL)
+	roundRobin, err := balancer.NewRoundRobin([]*backend.Backend{testBackend})
+	if err != nil {
+		t.Fatalf("failed to create round robin: %v", err)
+	}
+
+	reverseProxy := NewWithBalancer(roundRobin, testLogger())
+	responseRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	reverseProxy.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, responseRecorder.Code)
+	}
+	if testBackend.ActiveCount() != 0 {
+		t.Fatalf("expected active count %d, got %d", 0, testBackend.ActiveCount())
+	}
+}
+
 func newTestProxy(t *testing.T, targetURL string) *Proxy {
 	t.Helper()
 

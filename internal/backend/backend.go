@@ -13,6 +13,9 @@ type Backend struct {
 
 	mutex sync.RWMutex
 	alive bool
+
+	activeRequestsMutex sync.Mutex
+	activeRequests      int
 }
 
 func New(id string, rawURL string) (*Backend, error) {
@@ -49,6 +52,29 @@ func (backend *Backend) SetAlive(alive bool) {
 	defer backend.mutex.Unlock()
 
 	backend.alive = alive
+}
+
+func (backend *Backend) IncrementActive() {
+	backend.activeRequestsMutex.Lock()
+	defer backend.activeRequestsMutex.Unlock()
+
+	backend.activeRequests++
+}
+
+func (backend *Backend) DecrementActive() {
+	backend.activeRequestsMutex.Lock()
+	defer backend.activeRequestsMutex.Unlock()
+
+	if backend.activeRequests > 0 {
+		backend.activeRequests--
+	}
+}
+
+func (backend *Backend) ActiveCount() int {
+	backend.activeRequestsMutex.Lock()
+	defer backend.activeRequestsMutex.Unlock()
+
+	return backend.activeRequests
 }
 
 func parseURL(rawURL string) (*url.URL, error) {
