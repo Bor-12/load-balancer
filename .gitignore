@@ -10,10 +10,12 @@ build/
 coverage.out
 coverage.html
 *.coverprofile
+.gocache/
 
 .env
 .env.*
 !.env.example
+config.json
 configs/config.local.yaml
 configs/*.local.yaml
 !configs/*.example.yaml

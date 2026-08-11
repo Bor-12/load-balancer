@@ -14,7 +14,8 @@ type backendResponse struct {
 
 func main() {
 	port := valueOrDefault(os.Getenv("PORT"), "8081")
-	instanceID := valueOrDefault(os.Getenv("INSTANCE_ID"), "backend-1")
+	instanceID := valueOrDefault(os.Getenv("BACKEND_ID"), os.Getenv("INSTANCE_ID"))
+	instanceID = valueOrDefault(instanceID, "backend-1")
 	address := ":" + port
 
 	http.HandleFunc("/health", func(responseWriter http.ResponseWriter, request *http.Request) {
