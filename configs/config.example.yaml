@@ -1,0 +1,27 @@
+server:
+  listen_address: ":8080"
+  request_timeout: 5s
+  shutdown_timeout: 10s
+
+balancer:
+  strategy: least_connections
+
+health_check:
+  enabled: true
+  interval: 2s
+  timeout: 500ms
+  path: /health
+
+retries:
+  max_attempts: 2
+
+backends:
+  - id: backend-1
+    url: http://localhost:9001
+    weight: 5
+  - id: backend-2
+    url: http://localhost:9002
+    weight: 3
+  - id: backend-3
+    url: http://localhost:9003
+    weight: 2
