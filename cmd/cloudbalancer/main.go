@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,36 +10,44 @@ import (
 
 	"github.com/Bor-12/load-balancer/internal/backend"
 	"github.com/Bor-12/load-balancer/internal/balancer"
+	"github.com/Bor-12/load-balancer/internal/config"
 	"github.com/Bor-12/load-balancer/internal/health"
 	"github.com/Bor-12/load-balancer/internal/proxy"
 )
 
+const defaultConfigPath = "configs/config.local.yaml"
+
 func main() {
 	logger := slog.Default()
-	loadedConfig, err := loadConfig()
+	configPath := flag.String("config", defaultConfigPath, "path to YAML configuration file")
+	flag.Parse()
+
+	loadedConfig, err := config.Load(*configPath)
 	if err != nil {
 		logger.Error("invalid configuration", "error", err)
 		os.Exit(1)
 	}
 
-	backends, err := buildBackends(loadedConfig.BackendURLs, loadedConfig.BackendWeights)
+	backends, err := buildBackends(loadedConfig.Backends)
 	if err != nil {
 		logger.Error("invalid backend configuration", "error", err)
 		os.Exit(1)
 	}
 
-	requestBalancer, err := buildBalancer(loadedConfig.BalancerStrategy, backends)
+	requestBalancer, err := buildBalancer(loadedConfig.Balancer.Strategy, backends)
 	if err != nil {
 		logger.Error("invalid balancer configuration", "error", err)
 		os.Exit(1)
 	}
 
-	reverseProxy := proxy.NewWithBalancerWithTimeoutAndRetries(requestBalancer, logger, loadedConfig.RequestTimeout, loadedConfig.MaxAttempts)
-	healthChecker := health.NewChecker(backends, loadedConfig.HealthCheckPath, loadedConfig.HealthCheckInterval, loadedConfig.HealthCheckTimeout, logger)
-	go healthChecker.Run(context.Background())
+	reverseProxy := proxy.NewWithBalancerWithTimeoutAndRetries(requestBalancer, logger, loadedConfig.Server.RequestTimeout, loadedConfig.Retries.MaxAttempts)
+	if loadedConfig.HealthCheck.Enabled {
+		healthChecker := health.NewChecker(backends, loadedConfig.HealthCheck.Path, loadedConfig.HealthCheck.Interval, loadedConfig.HealthCheck.Timeout, logger)
+		go healthChecker.Run(context.Background())
+	}
 
 	server := &http.Server{
-		Addr:    loadedConfig.ListenAddress,
+		Addr:    loadedConfig.Server.ListenAddress,
 		Handler: reverseProxy,
 	}
 
@@ -51,20 +59,10 @@ func main() {
 	}
 }
 
-func buildBackends(backendURLs []string, backendWeights []int) ([]*backend.Backend, error) {
-	if len(backendWeights) > 0 && len(backendWeights) != len(backendURLs) {
-		return nil, errors.New("backend weights count must match backend URLs count")
-	}
-
-	backends := make([]*backend.Backend, 0, len(backendURLs))
-	for index, backendURL := range backendURLs {
-		backendID := fmt.Sprintf("backend-%d", index+1)
-		backendWeight := 1
-		if len(backendWeights) > 0 {
-			backendWeight = backendWeights[index]
-		}
-
-		parsedBackend, err := backend.NewWithWeight(backendID, backendURL, backendWeight)
+func buildBackends(configuredBackends []config.BackendConfig) ([]*backend.Backend, error) {
+	backends := make([]*backend.Backend, 0, len(configuredBackends))
+	for _, configuredBackend := range configuredBackends {
+		parsedBackend, err := backend.NewWithWeight(configuredBackend.ID, configuredBackend.URL, configuredBackend.Weight)
 		if err != nil {
 			return nil, err
 		}
@@ -77,11 +75,11 @@ func buildBackends(backendURLs []string, backendWeights []int) ([]*backend.Backe
 
 func buildBalancer(strategy string, backends []*backend.Backend) (balancer.Balancer, error) {
 	switch strategy {
-	case "round_robin":
+	case config.StrategyRoundRobin:
 		return balancer.NewRoundRobin(backends)
-	case "weighted_round_robin":
+	case config.StrategyWeightedRoundRobin:
 		return balancer.NewWeightedRoundRobin(backends)
-	case "least_connections":
+	case config.StrategyLeastConnections:
 		return balancer.NewLeastConnections(backends)
 	default:
 		return nil, fmt.Errorf("unsupported balancer strategy %q", strategy)
