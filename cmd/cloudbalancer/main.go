@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/Bor-12/load-balancer/internal/backend"
 	"github.com/Bor-12/load-balancer/internal/balancer"
@@ -14,6 +16,7 @@ import (
 	"github.com/Bor-12/load-balancer/internal/health"
 	"github.com/Bor-12/load-balancer/internal/metrics"
 	"github.com/Bor-12/load-balancer/internal/proxy"
+	serverrunner "github.com/Bor-12/load-balancer/internal/server"
 	"github.com/Bor-12/load-balancer/internal/status"
 )
 
@@ -23,6 +26,8 @@ func main() {
 	logger := slog.Default()
 	configPath := flag.String("config", defaultConfigPath, "path to YAML configuration file")
 	flag.Parse()
+	runContext, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
 
 	loadedConfig, err := config.Load(*configPath)
 	if err != nil {
@@ -46,7 +51,7 @@ func main() {
 	reverseProxy := proxy.NewWithBalancerWithTimeoutRetriesAndObserver(requestBalancer, logger, loadedConfig.Server.RequestTimeout, loadedConfig.Retries.MaxAttempts, metricsRecorder)
 	if loadedConfig.HealthCheck.Enabled {
 		healthChecker := health.NewCheckerWithObserver(backends, loadedConfig.HealthCheck.Path, loadedConfig.HealthCheck.Interval, loadedConfig.HealthCheck.Timeout, logger, metricsRecorder)
-		go healthChecker.Run(context.Background())
+		go healthChecker.Run(runContext)
 	}
 
 	router := http.NewServeMux()
@@ -62,7 +67,8 @@ func main() {
 
 	logger.Info("CloudBalancer listening", "address", server.Addr, "backend_count", len(backends))
 
-	if err := server.ListenAndServe(); err != nil {
+	runner := serverrunner.NewRunner(server, logger, loadedConfig.Server.ShutdownTimeout)
+	if err := runner.Run(runContext); err != nil {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}

@@ -1,6 +1,7 @@
 server:
   listen_address: ":8080"
   request_timeout: 5s
+  shutdown_timeout: 10s
 
 balancer:
   strategy: least_connections

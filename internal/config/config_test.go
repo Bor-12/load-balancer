@@ -12,6 +12,7 @@ func TestConfig_LoadValidYAML(t *testing.T) {
 server:
   listen_address: ":9090"
   request_timeout: 3s
+  shutdown_timeout: 7s
 balancer:
   strategy: weighted_round_robin
 health_check:
@@ -35,6 +36,9 @@ backends:
 	}
 	if loadedConfig.Server.RequestTimeout != 3*time.Second {
 		t.Fatalf("expected request timeout %s, got %s", 3*time.Second, loadedConfig.Server.RequestTimeout)
+	}
+	if loadedConfig.Server.ShutdownTimeout != 7*time.Second {
+		t.Fatalf("expected shutdown timeout %s, got %s", 7*time.Second, loadedConfig.Server.ShutdownTimeout)
 	}
 	if loadedConfig.Balancer.Strategy != StrategyWeightedRoundRobin {
 		t.Fatalf("expected strategy %q, got %q", StrategyWeightedRoundRobin, loadedConfig.Balancer.Strategy)
@@ -127,6 +131,9 @@ backends:
 	}
 	if loadedConfig.Server.RequestTimeout != DefaultRequestTimeout {
 		t.Fatalf("expected request timeout %s, got %s", DefaultRequestTimeout, loadedConfig.Server.RequestTimeout)
+	}
+	if loadedConfig.Server.ShutdownTimeout != DefaultShutdownTimeout {
+		t.Fatalf("expected shutdown timeout %s, got %s", DefaultShutdownTimeout, loadedConfig.Server.ShutdownTimeout)
 	}
 	if loadedConfig.Balancer.Strategy != DefaultBalancerStrategy {
 		t.Fatalf("expected strategy %q, got %q", DefaultBalancerStrategy, loadedConfig.Balancer.Strategy)
