@@ -20,8 +20,26 @@ type Proxy struct {
 	reverseProxy *httputil.ReverseProxy
 	balancer     balancer.Balancer
 	logger       *slog.Logger
+	observer     Observer
 	timeout      time.Duration
 	maxAttempts  int
+}
+
+type Observer interface {
+	RecordRequest(method string, backendID string, statusCode int, duration time.Duration)
+	RecordRetry(method string)
+	UpdateBackendState(updatedBackend *backend.Backend)
+}
+
+type noopObserver struct{}
+
+func (observer noopObserver) RecordRequest(method string, backendID string, statusCode int, duration time.Duration) {
+}
+
+func (observer noopObserver) RecordRetry(method string) {
+}
+
+func (observer noopObserver) UpdateBackendState(updatedBackend *backend.Backend) {
 }
 
 const defaultRequestTimeout = 5 * time.Second
@@ -50,8 +68,16 @@ func NewWithBalancerWithTimeout(requestBalancer balancer.Balancer, logger *slog.
 }
 
 func NewWithBalancerWithTimeoutAndRetries(requestBalancer balancer.Balancer, logger *slog.Logger, timeout time.Duration, maxAttempts int) *Proxy {
+	return NewWithBalancerWithTimeoutRetriesAndObserver(requestBalancer, logger, timeout, maxAttempts, noopObserver{})
+}
+
+func NewWithBalancerWithTimeoutRetriesAndObserver(requestBalancer balancer.Balancer, logger *slog.Logger, timeout time.Duration, maxAttempts int, observer Observer) *Proxy {
 	if logger == nil {
 		logger = slog.Default()
+	}
+
+	if observer == nil {
+		observer = noopObserver{}
 	}
 
 	if timeout <= 0 {
@@ -84,6 +110,7 @@ func NewWithBalancerWithTimeoutAndRetries(requestBalancer balancer.Balancer, log
 		reverseProxy: reverseProxy,
 		balancer:     requestBalancer,
 		logger:       logger,
+		observer:     observer,
 		timeout:      timeout,
 		maxAttempts:  maxAttempts,
 	}
@@ -113,6 +140,7 @@ func (proxy *Proxy) ServeHTTP(responseWriter http.ResponseWriter, request *http.
 			return
 		}
 
+		proxy.observer.RecordRetry(request.Method)
 		proxy.logger.Warn("retrying backend request", "path", request.URL.Path, "method", request.Method, "attempt", attempt, "status", buffer.statusCode)
 	}
 }
@@ -129,10 +157,20 @@ func (proxy *Proxy) serveAttempt(responseWriter http.ResponseWriter, request *ht
 	defer cancel()
 
 	selectedBackend.IncrementActive()
-	defer selectedBackend.DecrementActive()
+	proxy.observer.UpdateBackendState(selectedBackend)
+	defer func() {
+		selectedBackend.DecrementActive()
+		proxy.observer.UpdateBackendState(selectedBackend)
+	}()
 
 	requestContext := context.WithValue(timeoutContext, selectedBackendURLKey{}, selectedBackend.URL)
-	proxy.reverseProxy.ServeHTTP(responseWriter, request.WithContext(requestContext))
+	statusRecorder := newStatusRecorder(responseWriter)
+	startedAt := time.Now()
+	proxy.reverseProxy.ServeHTTP(statusRecorder, request.WithContext(requestContext))
+	duration := time.Since(startedAt)
+
+	proxy.observer.RecordRequest(request.Method, selectedBackend.ID, statusRecorder.statusCode, duration)
+	proxy.logger.Info("backend request completed", "method", request.Method, "path", request.URL.Path, "backend_id", selectedBackend.ID, "status", statusRecorder.statusCode, "latency_ms", duration.Milliseconds())
 }
 
 type selectedBackendURLKey struct{}
@@ -242,4 +280,43 @@ func (buffer *responseBuffer) WriteTo(responseWriter http.ResponseWriter) {
 
 	responseWriter.WriteHeader(buffer.statusCode)
 	_, _ = responseWriter.Write(buffer.body.Bytes())
+}
+
+type statusRecorder struct {
+	responseWriter http.ResponseWriter
+	statusCode     int
+	written        bool
+}
+
+func newStatusRecorder(responseWriter http.ResponseWriter) *statusRecorder {
+	return &statusRecorder{
+		responseWriter: responseWriter,
+		statusCode:     http.StatusOK,
+	}
+}
+
+func (recorder *statusRecorder) Header() http.Header {
+	return recorder.responseWriter.Header()
+}
+
+func (recorder *statusRecorder) WriteHeader(statusCode int) {
+	if recorder.written {
+		return
+	}
+
+	recorder.statusCode = statusCode
+	recorder.written = true
+	recorder.responseWriter.WriteHeader(statusCode)
+}
+
+func (recorder *statusRecorder) Write(body []byte) (int, error) {
+	if !recorder.written {
+		recorder.WriteHeader(http.StatusOK)
+	}
+
+	return recorder.responseWriter.Write(body)
+}
+
+func (recorder *statusRecorder) Unwrap() http.ResponseWriter {
+	return recorder.responseWriter
 }

@@ -16,9 +16,23 @@ type Checker struct {
 	path     string
 	interval time.Duration
 	logger   *slog.Logger
+	observer Observer
+}
+
+type Observer interface {
+	UpdateBackendState(updatedBackend *backend.Backend)
+}
+
+type noopObserver struct{}
+
+func (observer noopObserver) UpdateBackendState(updatedBackend *backend.Backend) {
 }
 
 func NewChecker(backends []*backend.Backend, path string, interval time.Duration, timeout time.Duration, logger *slog.Logger) *Checker {
+	return NewCheckerWithObserver(backends, path, interval, timeout, logger, noopObserver{})
+}
+
+func NewCheckerWithObserver(backends []*backend.Backend, path string, interval time.Duration, timeout time.Duration, logger *slog.Logger, observer Observer) *Checker {
 	if path == "" {
 		path = "/health"
 	}
@@ -35,6 +49,10 @@ func NewChecker(backends []*backend.Backend, path string, interval time.Duration
 		logger = slog.Default()
 	}
 
+	if observer == nil {
+		observer = noopObserver{}
+	}
+
 	return &Checker{
 		backends: backends,
 		client: &http.Client{
@@ -43,6 +61,7 @@ func NewChecker(backends []*backend.Backend, path string, interval time.Duration
 		path:     path,
 		interval: interval,
 		logger:   logger,
+		observer: observer,
 	}
 }
 
@@ -64,8 +83,13 @@ func (checker *Checker) Run(context context.Context) {
 
 func (checker *Checker) CheckOnce(context context.Context) {
 	for _, checkedBackend := range checker.backends {
+		wasAlive := checkedBackend.IsAlive()
 		alive := checker.isBackendAlive(context, checkedBackend)
 		checkedBackend.SetAlive(alive)
+		checker.observer.UpdateBackendState(checkedBackend)
+		if wasAlive != alive {
+			checker.logger.Info("backend health changed", "backend_id", checkedBackend.ID, "old_state", wasAlive, "new_state", alive)
+		}
 	}
 }
 
