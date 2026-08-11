@@ -16,6 +16,7 @@ const (
 	StrategyLeastConnections   = "least_connections"
 	DefaultListenAddress       = ":8080"
 	DefaultRequestTimeout      = 5 * time.Second
+	DefaultShutdownTimeout     = 10 * time.Second
 	DefaultBalancerStrategy    = StrategyRoundRobin
 	DefaultHealthCheckEnabled  = true
 	DefaultHealthCheckInterval = 2 * time.Second
@@ -33,8 +34,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	ListenAddress  string
-	RequestTimeout time.Duration
+	ListenAddress   string
+	RequestTimeout  time.Duration
+	ShutdownTimeout time.Duration
 }
 
 type BalancerConfig struct {
@@ -67,8 +69,9 @@ type rawConfig struct {
 }
 
 type rawServerConfig struct {
-	ListenAddress  string `yaml:"listen_address"`
-	RequestTimeout string `yaml:"request_timeout"`
+	ListenAddress   string `yaml:"listen_address"`
+	RequestTimeout  string `yaml:"request_timeout"`
+	ShutdownTimeout string `yaml:"shutdown_timeout"`
 }
 
 type rawHealthCheckConfig struct {
@@ -110,6 +113,10 @@ func Validate(loadedConfig Config) error {
 
 	if loadedConfig.Server.RequestTimeout <= 0 {
 		return errors.New("server request timeout must be greater than zero")
+	}
+
+	if loadedConfig.Server.ShutdownTimeout <= 0 {
+		return errors.New("server shutdown timeout must be greater than zero")
 	}
 
 	if loadedConfig.HealthCheck.Interval <= 0 {
@@ -156,6 +163,11 @@ func parseRawConfig(rawConfig rawConfig) (Config, error) {
 		return Config{}, err
 	}
 
+	shutdownTimeout, err := parseDurationOrDefault(rawConfig.Server.ShutdownTimeout, DefaultShutdownTimeout)
+	if err != nil {
+		return Config{}, err
+	}
+
 	healthInterval, err := parseDurationOrDefault(rawConfig.HealthCheck.Interval, DefaultHealthCheckInterval)
 	if err != nil {
 		return Config{}, err
@@ -173,8 +185,9 @@ func parseRawConfig(rawConfig rawConfig) (Config, error) {
 
 	loadedConfig := Config{
 		Server: ServerConfig{
-			ListenAddress:  valueOrDefault(rawConfig.Server.ListenAddress, DefaultListenAddress),
-			RequestTimeout: requestTimeout,
+			ListenAddress:   valueOrDefault(rawConfig.Server.ListenAddress, DefaultListenAddress),
+			RequestTimeout:  requestTimeout,
+			ShutdownTimeout: shutdownTimeout,
 		},
 		Balancer: BalancerConfig{
 			Strategy: valueOrDefault(rawConfig.Balancer.Strategy, DefaultBalancerStrategy),

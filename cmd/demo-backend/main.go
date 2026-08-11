@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 )
 
 type backendResponse struct {
@@ -16,6 +17,7 @@ func main() {
 	port := valueOrDefault(os.Getenv("PORT"), "8081")
 	instanceID := valueOrDefault(os.Getenv("BACKEND_ID"), os.Getenv("INSTANCE_ID"))
 	instanceID = valueOrDefault(instanceID, "backend-1")
+	responseDelay := durationOrDefault(os.Getenv("RESPONSE_DELAY"), 0)
 	address := ":" + port
 
 	http.HandleFunc("/health", func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -23,6 +25,10 @@ func main() {
 	})
 
 	http.HandleFunc("/", func(responseWriter http.ResponseWriter, request *http.Request) {
+		if responseDelay > 0 {
+			time.Sleep(responseDelay)
+		}
+
 		responseWriter.Header().Set("Content-Type", "application/json")
 		response := backendResponse{
 			Instance: instanceID,
@@ -40,6 +46,19 @@ func main() {
 		slog.Error("demo backend stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+func durationOrDefault(value string, defaultValue time.Duration) time.Duration {
+	if value == "" {
+		return defaultValue
+	}
+
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return defaultValue
+	}
+
+	return duration
 }
 
 func valueOrDefault(value string, defaultValue string) string {
