@@ -15,6 +15,11 @@ health_check:
 retries:
   max_attempts: 2
 
+rate_limit:
+  enabled: false
+  requests_per_second: 10
+  burst: 20
+
 backends:
   - id: backend-1
     url: http://localhost:9001

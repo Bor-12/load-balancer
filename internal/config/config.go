@@ -23,6 +23,9 @@ const (
 	DefaultHealthCheckTimeout  = 500 * time.Millisecond
 	DefaultHealthCheckPath     = "/health"
 	DefaultRetryMaxAttempts    = 2
+	DefaultRateLimitEnabled    = false
+	DefaultRateLimitRPS        = 10.0
+	DefaultRateLimitBurst      = 20
 )
 
 type Config struct {
@@ -30,6 +33,7 @@ type Config struct {
 	Balancer    BalancerConfig
 	HealthCheck HealthCheckConfig
 	Retries     RetryConfig
+	RateLimit   RateLimitConfig
 	Backends    []BackendConfig
 }
 
@@ -54,6 +58,12 @@ type RetryConfig struct {
 	MaxAttempts int `yaml:"max_attempts"`
 }
 
+type RateLimitConfig struct {
+	Enabled           bool    `yaml:"enabled"`
+	RequestsPerSecond float64 `yaml:"requests_per_second"`
+	Burst             int     `yaml:"burst"`
+}
+
 type BackendConfig struct {
 	ID     string `yaml:"id"`
 	URL    string `yaml:"url"`
@@ -65,6 +75,7 @@ type rawConfig struct {
 	Balancer    BalancerConfig       `yaml:"balancer"`
 	HealthCheck rawHealthCheckConfig `yaml:"health_check"`
 	Retries     RetryConfig          `yaml:"retries"`
+	RateLimit   rawRateLimitConfig   `yaml:"rate_limit"`
 	Backends    []BackendConfig      `yaml:"backends"`
 }
 
@@ -79,6 +90,12 @@ type rawHealthCheckConfig struct {
 	Interval string `yaml:"interval"`
 	Timeout  string `yaml:"timeout"`
 	Path     string `yaml:"path"`
+}
+
+type rawRateLimitConfig struct {
+	Enabled           *bool   `yaml:"enabled"`
+	RequestsPerSecond float64 `yaml:"requests_per_second"`
+	Burst             int     `yaml:"burst"`
 }
 
 func Load(path string) (Config, error) {
@@ -129,6 +146,16 @@ func Validate(loadedConfig Config) error {
 
 	if loadedConfig.Retries.MaxAttempts < 1 {
 		return errors.New("retry max attempts must be at least 1")
+	}
+
+	if loadedConfig.RateLimit.Enabled {
+		if loadedConfig.RateLimit.RequestsPerSecond <= 0 {
+			return errors.New("rate limit requests per second must be greater than zero")
+		}
+
+		if loadedConfig.RateLimit.Burst < 1 {
+			return errors.New("rate limit burst must be at least 1")
+		}
 	}
 
 	if len(loadedConfig.Backends) == 0 {
@@ -183,6 +210,21 @@ func parseRawConfig(rawConfig rawConfig) (Config, error) {
 		healthEnabled = *rawConfig.HealthCheck.Enabled
 	}
 
+	rateLimitEnabled := DefaultRateLimitEnabled
+	if rawConfig.RateLimit.Enabled != nil {
+		rateLimitEnabled = *rawConfig.RateLimit.Enabled
+	}
+
+	rateLimitRPS := rawConfig.RateLimit.RequestsPerSecond
+	if rateLimitRPS == 0 {
+		rateLimitRPS = DefaultRateLimitRPS
+	}
+
+	rateLimitBurst := rawConfig.RateLimit.Burst
+	if rateLimitBurst == 0 {
+		rateLimitBurst = DefaultRateLimitBurst
+	}
+
 	loadedConfig := Config{
 		Server: ServerConfig{
 			ListenAddress:   valueOrDefault(rawConfig.Server.ListenAddress, DefaultListenAddress),
@@ -200,6 +242,11 @@ func parseRawConfig(rawConfig rawConfig) (Config, error) {
 		},
 		Retries: RetryConfig{
 			MaxAttempts: rawConfig.Retries.MaxAttempts,
+		},
+		RateLimit: RateLimitConfig{
+			Enabled:           rateLimitEnabled,
+			RequestsPerSecond: rateLimitRPS,
+			Burst:             rateLimitBurst,
 		},
 		Backends: rawConfig.Backends,
 	}
