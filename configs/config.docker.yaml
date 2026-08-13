@@ -1,0 +1,38 @@
+server:
+  listen_address: ":8080"
+  request_timeout: 8s
+  shutdown_timeout: 10s
+
+balancer:
+  strategy: least_connections
+
+health_check:
+  enabled: true
+  interval: 2s
+  timeout: 500ms
+  path: /health
+
+retries:
+  max_attempts: 2
+
+rate_limit:
+  enabled: false
+  requests_per_second: 10
+  burst: 20
+
+backends:
+  - id: backend-1
+    url: http://backend-1:8081
+    weight: 5
+  - id: backend-2
+    url: http://backend-2:8081
+    weight: 3
+  - id: backend-3
+    url: http://backend-3:8081
+    weight: 2
+  - id: backend-4
+    url: http://backend-4:8081
+    weight: 1
+  - id: backend-5
+    url: http://backend-5:8081
+    weight: 1

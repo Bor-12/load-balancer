@@ -1,0 +1,7 @@
+.git
+.gocache
+bin
+coverage.out
+coverage.html
+configs/config.local.yaml
+cloudbalancer_roadmap_codex.md
