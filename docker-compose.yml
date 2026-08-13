@@ -1,0 +1,74 @@
+services:
+  cloudbalancer:
+    build: .
+    command: ["--config", "configs/config.docker.yaml"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend-1
+      - backend-2
+      - backend-3
+      - backend-4
+      - backend-5
+
+  backend-1:
+    build: .
+    entrypoint: ["demo-backend"]
+    environment:
+      BACKEND_ID: backend-1
+      PORT: "8081"
+      RESPONSE_DELAY: 2500ms
+
+  backend-2:
+    build: .
+    entrypoint: ["demo-backend"]
+    environment:
+      BACKEND_ID: backend-2
+      PORT: "8081"
+      RESPONSE_DELAY: 1200ms
+
+  backend-3:
+    build: .
+    entrypoint: ["demo-backend"]
+    environment:
+      BACKEND_ID: backend-3
+      PORT: "8081"
+      RESPONSE_DELAY: 300ms
+
+  backend-4:
+    build: .
+    entrypoint: ["demo-backend"]
+    environment:
+      BACKEND_ID: backend-4
+      PORT: "8081"
+      RESPONSE_DELAY: 0s
+
+  backend-5:
+    build: .
+    entrypoint: ["demo-backend"]
+    environment:
+      BACKEND_ID: backend-5
+      PORT: "8081"
+      RESPONSE_DELAY: 500ms
+      RESPONSE_DELAY_JITTER: 2500ms
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - cloudbalancer
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
