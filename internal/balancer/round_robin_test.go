@@ -152,7 +152,7 @@ func TestRoundRobin_ReincludesRecoveredBackend(t *testing.T) {
 	}
 }
 
-func newTestRoundRobin(t *testing.T, ids ...string) *RoundRobin {
+func newTestRoundRobin(t testing.TB, ids ...string) *RoundRobin {
 	t.Helper()
 
 	roundRobin, _ := newTestRoundRobinWithBackends(t, ids...)
@@ -160,7 +160,7 @@ func newTestRoundRobin(t *testing.T, ids ...string) *RoundRobin {
 	return roundRobin
 }
 
-func newTestRoundRobinWithBackends(t *testing.T, ids ...string) (*RoundRobin, []*backend.Backend) {
+func newTestRoundRobinWithBackends(t testing.TB, ids ...string) (*RoundRobin, []*backend.Backend) {
 	t.Helper()
 
 	backends := make([]*backend.Backend, 0, len(ids))

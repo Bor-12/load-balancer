@@ -303,7 +303,7 @@ func TestProxy_DecrementsActiveRequestsAfterRequest(t *testing.T) {
 	}
 }
 
-func newTestProxy(t *testing.T, targetURL string) *Proxy {
+func newTestProxy(t testing.TB, targetURL string) *Proxy {
 	t.Helper()
 
 	reverseProxy, err := New(targetURL, testLogger())
@@ -329,7 +329,7 @@ func newBackendServer(instance string) *httptest.Server {
 	}))
 }
 
-func newTestBackend(t *testing.T, id string, rawURL string) *backend.Backend {
+func newTestBackend(t testing.TB, id string, rawURL string) *backend.Backend {
 	t.Helper()
 
 	testBackend, err := backend.New(id, rawURL)
