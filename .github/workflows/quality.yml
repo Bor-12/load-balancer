@@ -1,0 +1,81 @@
+name: Quality Checks
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - "feature/**"
+  pull_request:
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  go-quality:
+    name: Go quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+
+      - name: Check formatting
+        run: |
+          test -z "$(gofmt -l ./cmd ./internal ./test)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Race detector
+        run: go test -race ./...
+
+      - name: Build binaries
+        run: |
+          mkdir -p bin
+          go build -o bin/cloudbalancer ./cmd/cloudbalancer
+          go build -o bin/demo-backend ./cmd/demo-backend
+          go build -o bin/loadtest ./cmd/loadtest
+
+  benchmark-smoke:
+    name: Benchmark smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+
+      - name: Run benchmark smoke
+        run: go test ./internal/balancer ./internal/ratelimit ./internal/proxy -bench Benchmark -benchtime=100ms -count=1
+
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose
+        run: docker compose config
+
+      - name: Build Docker image
+        run: docker build .
