@@ -1,6 +1,6 @@
 server:
   listen_address: ":8080"
-  request_timeout: 5s
+  request_timeout: 8s
   shutdown_timeout: 10s
 
 balancer:
@@ -22,11 +22,17 @@ rate_limit:
 
 backends:
   - id: backend-1
-    url: http://localhost:9001
+    url: http://backend-1:8081
     weight: 5
   - id: backend-2
-    url: http://localhost:9002
+    url: http://backend-2:8081
     weight: 3
   - id: backend-3
-    url: http://localhost:9003
+    url: http://backend-3:8081
     weight: 2
+  - id: backend-4
+    url: http://backend-4:8081
+    weight: 1
+  - id: backend-5
+    url: http://backend-5:8081
+    weight: 1

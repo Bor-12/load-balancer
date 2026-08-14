@@ -16,6 +16,7 @@ import (
 	"github.com/Bor-12/load-balancer/internal/health"
 	"github.com/Bor-12/load-balancer/internal/metrics"
 	"github.com/Bor-12/load-balancer/internal/proxy"
+	"github.com/Bor-12/load-balancer/internal/ratelimit"
 	serverrunner "github.com/Bor-12/load-balancer/internal/server"
 	"github.com/Bor-12/load-balancer/internal/status"
 )
@@ -49,6 +50,12 @@ func main() {
 
 	metricsRecorder := metrics.NewRecorder(backends)
 	reverseProxy := proxy.NewWithBalancerWithTimeoutRetriesAndObserver(requestBalancer, logger, loadedConfig.Server.RequestTimeout, loadedConfig.Retries.MaxAttempts, metricsRecorder)
+	proxyHandler := http.Handler(reverseProxy)
+	if loadedConfig.RateLimit.Enabled {
+		requestLimiter := ratelimit.New(loadedConfig.RateLimit.RequestsPerSecond, loadedConfig.RateLimit.Burst)
+		proxyHandler = requestLimiter.Handler(proxyHandler)
+	}
+
 	if loadedConfig.HealthCheck.Enabled {
 		healthChecker := health.NewCheckerWithObserver(backends, loadedConfig.HealthCheck.Path, loadedConfig.HealthCheck.Interval, loadedConfig.HealthCheck.Timeout, logger, metricsRecorder)
 		go healthChecker.Run(runContext)
@@ -58,7 +65,7 @@ func main() {
 	router.Handle("/metrics", metricsRecorder.Handler())
 	router.Handle("/healthz", status.HealthzHandler())
 	router.Handle("/readyz", status.ReadyzHandler(backends))
-	router.Handle("/", reverseProxy)
+	router.Handle("/", proxyHandler)
 
 	server := &http.Server{
 		Addr:    loadedConfig.Server.ListenAddress,

@@ -22,6 +22,10 @@ health_check:
   path: /ready
 retries:
   max_attempts: 3
+rate_limit:
+  enabled: true
+  requests_per_second: 7.5
+  burst: 15
 backends:
   - id: backend-1
     url: http://localhost:9001
@@ -54,6 +58,15 @@ backends:
 	}
 	if loadedConfig.Retries.MaxAttempts != 3 {
 		t.Fatalf("expected max attempts %d, got %d", 3, loadedConfig.Retries.MaxAttempts)
+	}
+	if !loadedConfig.RateLimit.Enabled {
+		t.Fatal("expected rate limit to be enabled")
+	}
+	if loadedConfig.RateLimit.RequestsPerSecond != 7.5 {
+		t.Fatalf("expected rate limit rps %f, got %f", 7.5, loadedConfig.RateLimit.RequestsPerSecond)
+	}
+	if loadedConfig.RateLimit.Burst != 15 {
+		t.Fatalf("expected rate limit burst %d, got %d", 15, loadedConfig.RateLimit.Burst)
 	}
 	if loadedConfig.Backends[0].Weight != 5 {
 		t.Fatalf("expected first backend weight %d, got %d", 5, loadedConfig.Backends[0].Weight)
@@ -119,6 +132,36 @@ balancer:
 	}
 }
 
+func TestConfig_RejectsInvalidRateLimitRPS(t *testing.T) {
+	_, err := loadConfigErrorFromString(t, `
+rate_limit:
+  enabled: true
+  requests_per_second: -1
+  burst: 10
+backends:
+  - id: backend-1
+    url: http://localhost:9001
+`)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestConfig_RejectsInvalidRateLimitBurst(t *testing.T) {
+	_, err := loadConfigErrorFromString(t, `
+rate_limit:
+  enabled: true
+  requests_per_second: 10
+  burst: -1
+backends:
+  - id: backend-1
+    url: http://localhost:9001
+`)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 func TestConfig_AppliesDefaults(t *testing.T) {
 	loadedConfig := loadConfigFromString(t, `
 backends:
@@ -149,6 +192,15 @@ backends:
 	}
 	if loadedConfig.Retries.MaxAttempts != DefaultRetryMaxAttempts {
 		t.Fatalf("expected max attempts %d, got %d", DefaultRetryMaxAttempts, loadedConfig.Retries.MaxAttempts)
+	}
+	if loadedConfig.RateLimit.Enabled != DefaultRateLimitEnabled {
+		t.Fatalf("expected rate limit enabled %t, got %t", DefaultRateLimitEnabled, loadedConfig.RateLimit.Enabled)
+	}
+	if loadedConfig.RateLimit.RequestsPerSecond != DefaultRateLimitRPS {
+		t.Fatalf("expected rate limit rps %f, got %f", DefaultRateLimitRPS, loadedConfig.RateLimit.RequestsPerSecond)
+	}
+	if loadedConfig.RateLimit.Burst != DefaultRateLimitBurst {
+		t.Fatalf("expected rate limit burst %d, got %d", DefaultRateLimitBurst, loadedConfig.RateLimit.Burst)
 	}
 	if loadedConfig.Backends[0].Weight != 1 {
 		t.Fatalf("expected backend weight %d, got %d", 1, loadedConfig.Backends[0].Weight)

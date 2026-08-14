@@ -98,7 +98,7 @@ func TestLeastConnections_ConcurrentAccess(t *testing.T) {
 	waitGroup.Wait()
 }
 
-func newTestLeastConnections(t *testing.T, ids ...string) *LeastConnections {
+func newTestLeastConnections(t testing.TB, ids ...string) *LeastConnections {
 	t.Helper()
 
 	leastConnections, _ := newTestLeastConnectionsWithBackends(t, ids...)
@@ -106,7 +106,7 @@ func newTestLeastConnections(t *testing.T, ids ...string) *LeastConnections {
 	return leastConnections
 }
 
-func newTestLeastConnectionsWithBackends(t *testing.T, ids ...string) (*LeastConnections, []*backend.Backend) {
+func newTestLeastConnectionsWithBackends(t testing.TB, ids ...string) (*LeastConnections, []*backend.Backend) {
 	t.Helper()
 
 	backends := make([]*backend.Backend, 0, len(ids))
