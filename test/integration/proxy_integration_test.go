@@ -155,7 +155,7 @@ func TestIntegration_RetriesIdempotentRequestAfterBackendFailure(t *testing.T) {
 }
 
 func TestIntegration_LeastConnectionsPrefersFastBackendUnderConcurrentLoad(t *testing.T) {
-	slowBackend := newDemoBackend(t, "slow", 80*time.Millisecond, http.StatusOK)
+	slowBackend := newDemoBackend(t, "slow", 150*time.Millisecond, http.StatusOK)
 	defer slowBackend.Close()
 	fastBackend := newDemoBackend(t, "fast", 0, http.StatusOK)
 	defer fastBackend.Close()
@@ -171,25 +171,22 @@ func TestIntegration_LeastConnectionsPrefersFastBackendUnderConcurrentLoad(t *te
 	loadBalancer := httptest.NewServer(proxy.NewWithBalancerWithTimeout(leastConnections, testLogger(), time.Second))
 	defer loadBalancer.Close()
 
-	results := make(chan string, 30)
-	var waitGroup sync.WaitGroup
-	for range 30 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
-			results <- getBackendResponse(t, loadBalancer.URL+"/").Instance
-		}()
-	}
-	waitGroup.Wait()
-	close(results)
+	slowResult := make(chan string, 1)
+	go func() {
+		slowResult <- getBackendResponse(t, loadBalancer.URL+"/").Instance
+	}()
 
-	counts := map[string]int{}
-	for result := range results {
-		counts[result]++
+	waitForActiveRequests(t, backends[0], 1)
+
+	for range 5 {
+		response := getBackendResponse(t, loadBalancer.URL+"/")
+		if response.Instance != "fast" {
+			t.Fatalf("expected request to avoid busy slow backend, got %s", response.Instance)
+		}
 	}
 
-	if counts["fast"] <= counts["slow"] {
-		t.Fatalf("expected fast backend to receive more requests, got fast=%d slow=%d", counts["fast"], counts["slow"])
+	if instance := <-slowResult; instance != "slow" {
+		t.Fatalf("expected first request to use slow backend, got %s", instance)
 	}
 }
 
@@ -300,6 +297,21 @@ func getBackendResponse(t *testing.T, url string) backendResponse {
 	}
 
 	return decodedResponse
+}
+
+func waitForActiveRequests(t *testing.T, checkedBackend *backend.Backend, expectedActiveRequests int) {
+	t.Helper()
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if checkedBackend.ActiveCount() == expectedActiveRequests {
+			return
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	t.Fatalf("expected backend %s active requests to be %d, got %d", checkedBackend.ID, expectedActiveRequests, checkedBackend.ActiveCount())
 }
 
 func metricValue(metricFamilies []*dto.MetricFamily, name string, labels map[string]string) float64 {

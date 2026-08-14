@@ -17,7 +17,6 @@ WORKDIR /app
 
 COPY --from=builder /out/cloudbalancer /usr/local/bin/cloudbalancer
 COPY --from=builder /out/demo-backend /usr/local/bin/demo-backend
-COPY configs/config.docker.yaml /app/configs/config.docker.yaml
 
 USER cloudbalancer
 
