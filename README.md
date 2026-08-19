@@ -130,14 +130,14 @@ Available metrics include:
 
 The Docker demo uses backend delays between `10ms` and `400ms`, plus one backend with `50ms` to `550ms` of variable latency. Two configurations demonstrate normal operation and failure handling.
 
-| Scenario | Configuration | Request timeout | Result |
+| Scenario | Configuration | Request timeout | Dashboard observation |
 | --- | --- | --- | --- |
-| Stable load | [`config.docker.yaml`](configs/config.docker.yaml) | `800ms` | 50,000 successful requests, no errors |
-| Resilience test | [`config.docker.resilience.yaml`](configs/config.docker.resilience.yaml) | `300ms` | Timeouts, retries, failover, and backend recovery |
+| Stable load | [`config.docker.yaml`](configs/config.docker.yaml) | `800ms` | Healthy backends and no error activity |
+| Resilience test | [`config.docker.resilience.yaml`](configs/config.docker.resilience.yaml) | `300ms` | Health-state changes and `502`/`504` error activity |
 
 #### Stable Load
 
-The stable scenario completed 50,000 requests at approximately 987 requests per second, with all backends healthy and no failed responses.
+The dashboard shows traffic distributed across the five backends, their different response latencies, all health states remaining available, and no backend error activity.
 
 ![Grafana stable load test](docs/grafana-stable-load.png)
 
@@ -151,7 +151,7 @@ go run ./cmd/loadtest --url http://localhost:8080/api/products --requests 50000 
 
 #### Resilience Test
 
-The resilience scenario uses a shorter timeout and briefly stops one backend. In the recorded run, Load Balancer processed 50,000 requests at approximately 823 requests per second, including 43,862 successful responses, 6,134 timeouts, 4 connection failures, and 17,050 retries.
+The resilience scenario uses a shorter timeout and briefly stops one backend. The dashboard shows the temporary health-state change, traffic redistribution, latency variation, `502` connection failures, and `504` timeouts.
 
 ![Grafana resilience test](docs/grafana-resilience-test.png)
 
