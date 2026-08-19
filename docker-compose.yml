@@ -1,11 +1,11 @@
 services:
-  cloudbalancer:
+  loadbalancer:
     build: .
     command: ["--config", "/app/configs/config.yaml"]
     ports:
       - "8080:8080"
     volumes:
-      - ./configs/config.docker.yaml:/app/configs/config.yaml:ro
+      - ./configs/${LOADBALANCER_CONFIG:-config.docker.yaml}:/app/configs/config.yaml:ro
     depends_on:
       - backend-1
       - backend-2
@@ -19,7 +19,7 @@ services:
     environment:
       BACKEND_ID: backend-1
       PORT: "8081"
-      RESPONSE_DELAY: 2500ms
+      RESPONSE_DELAY: 400ms
 
   backend-2:
     build: .
@@ -27,7 +27,7 @@ services:
     environment:
       BACKEND_ID: backend-2
       PORT: "8081"
-      RESPONSE_DELAY: 1200ms
+      RESPONSE_DELAY: 200ms
 
   backend-3:
     build: .
@@ -35,7 +35,7 @@ services:
     environment:
       BACKEND_ID: backend-3
       PORT: "8081"
-      RESPONSE_DELAY: 300ms
+      RESPONSE_DELAY: 80ms
 
   backend-4:
     build: .
@@ -43,7 +43,7 @@ services:
     environment:
       BACKEND_ID: backend-4
       PORT: "8081"
-      RESPONSE_DELAY: 0s
+      RESPONSE_DELAY: 10ms
 
   backend-5:
     build: .
@@ -51,8 +51,8 @@ services:
     environment:
       BACKEND_ID: backend-5
       PORT: "8081"
-      RESPONSE_DELAY: 500ms
-      RESPONSE_DELAY_JITTER: 2500ms
+      RESPONSE_DELAY: 50ms
+      RESPONSE_DELAY_JITTER: 500ms
 
   prometheus:
     image: prom/prometheus:v3.5.0
@@ -61,7 +61,7 @@ services:
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
-      - cloudbalancer
+      - loadbalancer
 
   grafana:
     image: grafana/grafana:12.1.0

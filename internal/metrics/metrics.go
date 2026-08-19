@@ -25,28 +25,28 @@ func NewRecorder(backends []*backend.Backend) *Recorder {
 	recorder := &Recorder{
 		registry: prometheus.NewRegistry(),
 		requestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "cloudbalancer_requests_total",
+			Name: "loadbalancer_requests_total",
 			Help: "Total proxied backend requests.",
 		}, []string{"method", "backend", "status"}),
 		backendErrorsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "cloudbalancer_backend_errors_total",
+			Name: "loadbalancer_backend_errors_total",
 			Help: "Total backend error responses.",
 		}, []string{"backend", "status"}),
 		backendHealthy: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "cloudbalancer_backend_healthy",
+			Name: "loadbalancer_backend_healthy",
 			Help: "Backend health state. 1 is healthy, 0 is unhealthy.",
 		}, []string{"backend"}),
 		backendActiveRequests: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "cloudbalancer_backend_active_requests",
+			Name: "loadbalancer_backend_active_requests",
 			Help: "Current active requests per backend.",
 		}, []string{"backend"}),
 		backendRequestDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "cloudbalancer_backend_request_duration_seconds",
+			Name:    "loadbalancer_backend_request_duration_seconds",
 			Help:    "Backend request duration in seconds.",
 			Buckets: prometheus.DefBuckets,
 		}, []string{"backend"}),
 		retriesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "cloudbalancer_retries_total",
+			Name: "loadbalancer_retries_total",
 			Help: "Total backend request retries.",
 		}, []string{"method"}),
 	}

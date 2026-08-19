@@ -1,6 +1,6 @@
-APP_NAME := cloudbalancer
+APP_NAME := loadbalancer
 APP_BINARY := $(APP_NAME).exe
-CMD_PATH := ./cmd/cloudbalancer
+CMD_PATH := ./cmd/loadbalancer
 GO_PACKAGES := ./...
 
 .PHONY: fmt vet test test-race coverage build verify run

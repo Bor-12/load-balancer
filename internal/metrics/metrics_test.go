@@ -14,7 +14,7 @@ func TestMetrics_RequestCounterIncrements(t *testing.T) {
 
 	recorder.RecordRequest(http.MethodGet, "backend-1", http.StatusOK, time.Millisecond)
 
-	if metricValue(t, recorder, "cloudbalancer_requests_total") != 1 {
+	if metricValue(t, recorder, "loadbalancer_requests_total") != 1 {
 		t.Fatalf("expected request counter to increment")
 	}
 }
@@ -25,7 +25,7 @@ func TestMetrics_BackendErrorCounterIncrements(t *testing.T) {
 
 	recorder.RecordRequest(http.MethodGet, "backend-1", http.StatusBadGateway, time.Millisecond)
 
-	if metricValue(t, recorder, "cloudbalancer_backend_errors_total") != 1 {
+	if metricValue(t, recorder, "loadbalancer_backend_errors_total") != 1 {
 		t.Fatalf("expected backend error counter to increment")
 	}
 }
@@ -37,7 +37,7 @@ func TestMetrics_HealthyGaugeChanges(t *testing.T) {
 	testBackend.SetAlive(false)
 	recorder.UpdateBackendState(testBackend)
 
-	if metricValue(t, recorder, "cloudbalancer_backend_healthy") != 0 {
+	if metricValue(t, recorder, "loadbalancer_backend_healthy") != 0 {
 		t.Fatalf("expected healthy gauge to be 0")
 	}
 }
@@ -48,7 +48,7 @@ func TestMetrics_RetryCounterIncrements(t *testing.T) {
 
 	recorder.RecordRetry(http.MethodGet)
 
-	if metricValue(t, recorder, "cloudbalancer_retries_total") != 1 {
+	if metricValue(t, recorder, "loadbalancer_retries_total") != 1 {
 		t.Fatalf("expected retry counter to increment")
 	}
 }

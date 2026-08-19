@@ -45,7 +45,7 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p bin
-          go build -o bin/cloudbalancer ./cmd/cloudbalancer
+          go build -o bin/loadbalancer ./cmd/loadbalancer
           go build -o bin/demo-backend ./cmd/demo-backend
           go build -o bin/loadtest ./cmd/loadtest
 

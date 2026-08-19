@@ -86,7 +86,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (backend) (rate(cloudbalancer_requests_total[1m]))",
+          "expr": "sum by (backend) (rate(loadbalancer_requests_total[1m]))",
           "legendFormat": "{{backend}}",
           "refId": "A"
         }
@@ -173,7 +173,7 @@
       },
       "targets": [
         {
-          "expr": "cloudbalancer_backend_healthy",
+          "expr": "loadbalancer_backend_healthy",
           "legendFormat": "{{backend}}",
           "refId": "A"
         }
@@ -260,7 +260,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (backend) (rate(cloudbalancer_backend_request_duration_seconds_sum[1m])) / sum by (backend) (rate(cloudbalancer_backend_request_duration_seconds_count[1m]))",
+          "expr": "sum by (backend) (rate(loadbalancer_backend_request_duration_seconds_sum[1m])) / sum by (backend) (rate(loadbalancer_backend_request_duration_seconds_count[1m]))",
           "legendFormat": "{{backend}}",
           "refId": "A"
         }
@@ -347,7 +347,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (backend, status) (rate(cloudbalancer_backend_errors_total[1m]))",
+          "expr": "sum by (backend, status) (rate(loadbalancer_backend_errors_total[1m]))",
           "legendFormat": "{{backend}} {{status}}",
           "refId": "A"
         }
@@ -359,7 +359,7 @@
   "refresh": "5s",
   "schemaVersion": 39,
   "tags": [
-    "cloudbalancer"
+    "load-balancer"
   ],
   "templating": {
     "list": []
@@ -370,8 +370,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "CloudBalancer",
-  "uid": "cloudbalancer",
+  "title": "Load Balancer",
+  "uid": "load-balancer",
   "version": 1,
   "weekStart": ""
 }

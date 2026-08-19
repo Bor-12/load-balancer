@@ -149,7 +149,7 @@ func TestIntegration_RetriesIdempotentRequestAfterBackendFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to gather metrics: %v", err)
 	}
-	if metricValue(metricFamilies, "cloudbalancer_retries_total", map[string]string{"method": http.MethodGet}) != 1 {
+	if metricValue(metricFamilies, "loadbalancer_retries_total", map[string]string{"method": http.MethodGet}) != 1 {
 		t.Fatal("expected GET retry metric to be incremented")
 	}
 }
