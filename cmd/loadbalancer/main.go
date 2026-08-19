@@ -72,7 +72,7 @@ func main() {
 		Handler: router,
 	}
 
-	logger.Info("CloudBalancer listening", "address", server.Addr, "backend_count", len(backends))
+	logger.Info("Load Balancer listening", "address", server.Addr, "backend_count", len(backends))
 
 	runner := serverrunner.NewRunner(server, logger, loadedConfig.Server.ShutdownTimeout)
 	if err := runner.Run(runContext); err != nil {

@@ -1,7 +1,7 @@
 apiVersion: 1
 
 providers:
-  - name: CloudBalancer
+  - name: Load Balancer
     type: file
     options:
       path: /etc/grafana/provisioning/dashboards
